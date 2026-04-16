@@ -84,13 +84,14 @@ def build_edges_from_dom(dom_json):
 class GCNConvModel(MessagePassing):
     def __init__(self, in_channels, out_channels):
         super().__init__(aggr='add')
-        self.lin1 = Linear(in_channels, 256, bias=True)
+        #in_channels=2306
+        self.lin1 = Linear(in_channels, 1536, bias=True)
         self.relu1 = ReLU()
 
-        self.lin2 = Linear(256, 64, bias=True)
+        self.lin2 = Linear(1536, 1024, bias=True)
         self.relu2 = ReLU()
 
-        self.lin3 = Linear(64, out_channels, bias=True)
+        self.lin3 = Linear(1024, out_channels, bias=True)
         self.relu3 = ReLU()
 
         self.reset_parameters()
@@ -130,12 +131,12 @@ class GCNConvModel(MessagePassing):
 
 
 
-def gnn_pipeline(j_dom_file_path, gnn_outp_file_path, textual_embedding_file_path):
+def gnn_pipeline(j_dom_file_path, gnn_outp_file_path, textual_embedding_file_path, out_channels=768):
     json_dom = get_json_data(j_dom_file_path)
     nodes_feats = pipeline_get_gnn_nodes_feat(json_dom, textual_embedding_file_path)
     edge_index = build_edges_from_dom(json_dom)
     data = Data(x=nodes_feats, edge_index=edge_index)
-    model = GCNConvModel(in_channels=nodes_feats.size(1), out_channels=16)
+    model = GCNConvModel(in_channels=nodes_feats.size(1), out_channels=out_channels)
     outputs = model(**data)
     torch.save(outputs, gnn_outp_file_path)
     print("GNC outputs generated")
