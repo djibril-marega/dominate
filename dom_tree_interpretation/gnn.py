@@ -22,40 +22,16 @@ def extract_structure(json_dom, depth=0, index_child=0, result=None):
     if result is None:
         result = []
 
-    # Ajouter le noeud courant
+    # Add current node
     node_id = json_dom.get("index")
     result.append((node_id, depth, index_child))
 
-    # Parcourir les enfants
+    # Browse the children
     children = json_dom.get("children", [])
     for i, child in enumerate(children):
         extract_structure(child, depth + 1, i, result)
 
     return result
-
-
-# textual features
-def pipeline_get_textual_embeddings(textual_embedding_file_path):
-    dict_textual_embeddings = torch.load(textual_embedding_file_path)
-    return get_textual_features(dict_textual_embeddings)
-    
-
-# structural embeddings features
-def pipeline_get_structural_embeddings(json_dom):
-    dom_structure = extract_structure(json_dom)
-    list_structure_dom = []
-    for elem_html_structure in dom_structure:
-        t_html_structure = torch.tensor(elem_html_structure[1:])
-        list_structure_dom.append(t_html_structure)
-
-    return torch.stack(list_structure_dom, dim=0)
-
-
-def pipeline_get_gnn_nodes_feat(json_dom, textual_embedding_file_path):
-    textual_feats = pipeline_get_textual_embeddings(textual_embedding_file_path)
-    structural_feats = pipeline_get_structural_embeddings(json_dom)
-    return torch.concat([textual_feats, structural_feats], dim=1)
-
 
 def build_edges_from_dom(dom_json):
     edges = []
@@ -81,10 +57,27 @@ def build_edges_from_dom(dom_json):
     return edge_index
 
 
+def get_gnc_features(outputs_decoder):
+    list_tensors = []
+    for type_embeddings_list in outputs_decoder: #list_embeddings_with_index
+        list_samples_embeddings = [t[1] for t in type_embeddings_list]
+        t_embeddings = torch.cat(list_samples_embeddings, dim=0)
+        list_tensors.append(t_embeddings)
+
+    return torch.cat(list_tensors, dim=1)
+
+def gnn_inputs_prepared(outputs_decoder, j_dom_file_path):
+    nodes_feats = get_gnc_features(outputs_decoder)
+    json_dom = get_json_data(j_dom_file_path)
+    edge_index = build_edges_from_dom(json_dom)
+    data = Data(x=nodes_feats, edge_index=edge_index)
+    return data
+
+
 class GCNConvModel(MessagePassing):
     def __init__(self, in_channels, out_channels):
         super().__init__(aggr='add')
-        #in_channels=2306
+        #in_channels=2304
         self.lin1 = Linear(in_channels, 1536, bias=True)
         self.relu1 = ReLU()
 
@@ -125,28 +118,6 @@ class GCNConvModel(MessagePassing):
         return out
     
     def message(self, x_j, norm):
-        # x_j has shape [E, out_channels]
+        # x_j has shape [E, out_channels] print
         # Step 4: Normalize node features.
         return norm.view(-1, 1) * x_j
-
-
-
-def gnn_pipeline(j_dom_file_path, gnn_outp_file_path, textual_embedding_file_path, out_channels=768):
-    json_dom = get_json_data(j_dom_file_path)
-    nodes_feats = pipeline_get_gnn_nodes_feat(json_dom, textual_embedding_file_path)
-    edge_index = build_edges_from_dom(json_dom)
-    data = Data(x=nodes_feats, edge_index=edge_index)
-    model = GCNConvModel(in_channels=nodes_feats.size(1), out_channels=out_channels)
-    outputs = model(**data)
-    torch.save(outputs, gnn_outp_file_path)
-    print("GNC outputs generated")
-
-
-
-
-
-# Create a node for each html element in DOM
-#data = HeteroData()
-
-
-# create an edge type graph connectivity

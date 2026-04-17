@@ -16,32 +16,52 @@ class FakeEncoder(nn.Module):
         return x
 
 
-def decoder_t5_pipeline(decoder_inputs_file_path, decoder_outputs_file_path):
-    tokenizer = AutoTokenizer.from_pretrained("google-t5/t5-base")
-    model = AutoModelForSeq2SeqLM.from_pretrained("google-t5/t5-base")
+class DecoderModel(nn.Module):
+    def __init__(self, D=768, S=16, d_model=768):
+        super().__init__()
+        self.model = AutoModelForSeq2SeqLM.from_pretrained("google-t5/t5-base")
+        self.tokenizer = AutoTokenizer.from_pretrained("google-t5/t5-base")
 
-    gnc_embeddings_outputs = torch.load(decoder_inputs_file_path)
-    B, D = gnc_embeddings_outputs.shape
+        self.D = D
+        self.S = S
+        self.d_model = 768
+        self.fake_encoder = FakeEncoder(
+            d_in=self.D,
+            S=self.S,        
+            d_model=self.d_model
+        )
+    
+    def forward(self, gnc_embeddings_outputs):
+        B, D = gnc_embeddings_outputs.shape
 
-    fake_encoder = FakeEncoder(
-        d_in=D,
-        S=16,        
-        d_model=768
-    )
+        fake_hidden_states = self.fake_encoder(gnc_embeddings_outputs)
 
-    fake_hidden_states = fake_encoder(gnc_embeddings_outputs)
+        encoder_outputs = modeling_outputs.BaseModelOutput(
+            last_hidden_state=fake_hidden_states
+        )
 
-    encoder_outputs = modeling_outputs.BaseModelOutput(
-        last_hidden_state=fake_hidden_states
-    )
-    outputs = model.generate(
-        input_ids=None,  # important
-        encoder_outputs=encoder_outputs,
-        max_new_tokens=100,
-    )
-    #print(output)
-    print(tokenizer.decode(outputs, skip_special_tokens=True))
-    torch.save(outputs, decoder_outputs_file_path)
+        ecoder_input_ids = torch.full(
+            (B, 1),
+            self.model.config.decoder_start_token_id
+        )
+
+        embeddings = self.model(
+            encoder_outputs=encoder_outputs,
+            decoder_input_ids=ecoder_input_ids,
+            output_hidden_states=True,
+            return_dict=True
+        )
+
+        tokens = self.model.generate(
+                input_ids=None,  # important
+                encoder_outputs=encoder_outputs,
+                max_new_tokens=100,
+            )
+
+        decoder_hidden_states = embeddings.decoder_hidden_states
+        texts = self.tokenizer.decode(tokens, skip_special_tokens=True)
+
+        return decoder_hidden_states, texts
 
 
 

@@ -1,6 +1,7 @@
 from transformers import AutoTokenizer, AutoModel
-import json, re, torch
-from file_manager.json_file_manager import find_key, get_json_data
+import re, torch
+#from file_manager.json_file_manager import find_key, get_json_data
+import torch.nn as nn
 
 def clean_token(text):
     """Simple cleaning for tokens."""
@@ -167,26 +168,15 @@ def get_html_list_element_embedding(tokenizer, model, token_max, texts):
     return list_final_embeddings
 
 
-def generate_textual_embeddings(file_path, j_dom_file_path):
-    # get text from json file
-    json_dom = get_json_data(j_dom_file_path)
-
-    texts = find_key(json_dom, "text")
-    attributes = find_key(json_dom, "attributes")
-    tags = find_key(json_dom, "tag")
-
-    serialized_attributes = [serialize_tuple(x, serialize_attributs) for x in attributes]
-    serialized_tag = serialize_tags(tags)
-
-    tokenizer = AutoTokenizer.from_pretrained("bert-base-multilingual-cased")
-    model = AutoModel.from_pretrained("bert-base-multilingual-cased")
-
-    token_max = model.config.max_position_embeddings
-
-    texts_embeddings = get_html_list_element_embedding(tokenizer, model, token_max, texts)
-    attributs_embeddings = get_html_list_element_embedding(tokenizer, model, token_max, serialized_attributes)
-    tags_embeddings = get_html_list_element_embedding(tokenizer, model, token_max, serialized_tag)
-
-    textual_embeddings = {"texts_embeddings": texts_embeddings, "attributs_embeddings": attributs_embeddings, "tags_embeddings": tags_embeddings}
-    torch.save(textual_embeddings, file_path)
-    print("Textual embedding generated")
+class TextualEncoderModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.tokenizer = AutoTokenizer.from_pretrained("bert-base-multilingual-cased")
+        self.model = AutoModel.from_pretrained("bert-base-multilingual-cased")
+        self.token_max = self.model.config.max_position_embeddings
+    
+    def forward(self, texts, serialized_attributes, serialized_tag):
+        texts_embeddings = get_html_list_element_embedding(self.tokenizer, self.model, self.token_max, texts)
+        attributs_embeddings = get_html_list_element_embedding(self.tokenizer, self.model, self.token_max, serialized_attributes)
+        tags_embeddings = get_html_list_element_embedding(self.tokenizer, self.model, self.token_max, serialized_tag)
+        return texts_embeddings, attributs_embeddings, tags_embeddings
