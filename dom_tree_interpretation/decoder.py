@@ -61,7 +61,7 @@ class DecoderModel(nn.Module):
         decoder_hidden_states = embeddings.decoder_hidden_states
         texts = self.tokenizer.decode(tokens, skip_special_tokens=True)
 
-        return decoder_hidden_states, texts
+        return {"hidden_states": decoder_hidden_states, "texts": texts}
 
 
 

@@ -177,6 +177,6 @@ class TextualEncoderModel(nn.Module):
     
     def forward(self, texts, serialized_attributes, serialized_tag):
         texts_embeddings = get_html_list_element_embedding(self.tokenizer, self.model, self.token_max, texts)
-        attributs_embeddings = get_html_list_element_embedding(self.tokenizer, self.model, self.token_max, serialized_attributes)
+        attributes_embeddings = get_html_list_element_embedding(self.tokenizer, self.model, self.token_max, serialized_attributes)
         tags_embeddings = get_html_list_element_embedding(self.tokenizer, self.model, self.token_max, serialized_tag)
-        return texts_embeddings, attributs_embeddings, tags_embeddings
+        return texts_embeddings, attributes_embeddings, tags_embeddings
