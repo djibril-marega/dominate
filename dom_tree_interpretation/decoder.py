@@ -58,10 +58,10 @@ class DecoderModel(nn.Module):
                 max_new_tokens=100,
             )
 
-        decoder_hidden_states = embeddings.decoder_hidden_states
+        decoder_last_hidden_states = embeddings.decoder_hidden_states[-1]
         texts = self.tokenizer.decode(tokens, skip_special_tokens=True)
 
-        return {"hidden_states": decoder_hidden_states, "texts": texts}
+        return {"hidden_states": decoder_last_hidden_states, "texts": texts}
 
 
 

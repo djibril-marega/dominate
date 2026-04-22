@@ -14,6 +14,6 @@ serialized_attributes = [serialize_tuple(x, serialize_attributs) for x in attrib
 serialized_tag = serialize_tags(tags)
 
 
-model_training = TrainModel()
+model_training = TrainModel(show_w_diff=True, show_in_loss=True)
 outputs = model_training.train_step(texts, serialized_attributes, serialized_tag, j_dom_file_path)
 print(outputs)

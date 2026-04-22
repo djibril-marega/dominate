@@ -25,6 +25,9 @@ class DominateModel(nn.Module):
                 return outputs_gnn
         outputs_dec = self.decoder_model(outputs_gnn)
         if hidden_states:
-            return {'encoder': outputs_enc, 'gnc': outputs_gnn, 'decoder': outputs_dec}
+            if get_gnc_inputs:
+                return {'encoder': outputs_enc, 'gnc': outputs_gnn, 'gnc_inputs': gnn_inputs_data, 'decoder': outputs_dec}
+            else:
+                return {'encoder': outputs_enc, 'gnc': outputs_gnn, 'decoder': outputs_dec}
         else:
             return outputs_dec

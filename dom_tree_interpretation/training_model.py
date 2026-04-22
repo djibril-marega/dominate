@@ -97,12 +97,15 @@ def structural_score_matrix(edge_index, alpha=1.0):
     return scores
 
 class TrainModel():
-    def __init__(self, node_lr=0.01, func_lr=0.01, struc_lr=0.01):
+    def __init__(self, show_w_diff=False, node_lr=0.01, func_lr=0.01, struc_lr=0.01, dec_lr=0.01, show_in_loss=False):
         self.model = DominateModel().train()
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=0.001, momentum=0.9)
         self.node_lr = node_lr
         self.func_lr = func_lr
         self.struc_lr = struc_lr
+        self.show_w_diff = show_w_diff
+        self.dec_lr = dec_lr
+        self.show_in_loss = show_in_loss
 
     
     def train_step(self, texts, serialized_attributes, serialized_tag, j_dom_file_path):
@@ -115,14 +118,13 @@ class TrainModel():
             outputs_fist_generation["decoder"]["texts"], 
             serialized_attributes, 
             serialized_tag, 
-            j_dom_file_path, 
-            stop_at='gnc',
+            j_dom_file_path,
             hidden_states=True,
             get_gnc_inputs=True
         )
         # node objective : get node similarity rebuild score
         scoresNodes = F.cosine_similarity(outputs_fist_generation["gnc"] , outputs_second_generation["gnc"], dim=1)
-        node_rebuild_score = scoresNodes.mean()
+        node_rebuild_score = 1-norm_cos(scoresNodes.mean())
 
         # functional objective : get node functional similarity rebuild score by attributes
         embed_st_gen = prepared_encoder_outputs(outputs_fist_generation["encoder"][1])
@@ -143,20 +145,39 @@ class TrainModel():
         diff_struct_scores = torch.abs(struc_brut_score - embed_struc_score)
         struct_rebuild_score = diff_struct_scores.mean()
 
+        # decoder objective : 
+        #print(f"decoder hidden state : {outputs_fist_generation['decoder']['hidden_states'].shape}")
+        embed_decoder_score = F.cosine_similarity(
+            outputs_fist_generation["decoder"]["hidden_states"], 
+            outputs_second_generation["decoder"]["hidden_states"], dim=2)
+        decoder_rebuild_score = 1-norm_cos(embed_decoder_score.mean())
+
         # compute loss
-        loss = -(self.node_lr*node_rebuild_score + self.func_lr*func_rebuild_score + self.struc_lr*struct_rebuild_score)
+        loss = (self.node_lr*node_rebuild_score + 
+                self.func_lr*func_rebuild_score + 
+                self.struc_lr*struct_rebuild_score + 
+                self.dec_lr*decoder_rebuild_score
+        )
+        if self.show_in_loss:
+            print("node_loss :", self.node_lr * node_rebuild_score)
+            print("func_loss :", self.func_lr * func_rebuild_score)
+            print("struct_loss :", self.struc_lr * struct_rebuild_score)
+            print("decoder_loss :", self.dec_lr * decoder_rebuild_score)
+
         loss.backward()
 
-        before = {}
-        for name, param in self.model.named_parameters():
-            before[name] = param.clone().detach()
+        if self.show_w_diff:
+            before = {}
+            for name, param in self.model.named_parameters():
+                before[name] = param.clone().detach()
 
         # Adjust learning weights
         self.optimizer.step()
-
-        for name, param in self.model.named_parameters():
-            diff = (param - before[name]).abs().mean()
-            print(name, diff.item())
+        
+        if self.show_w_diff:
+            for name, param in self.model.named_parameters():
+                diff = (param - before[name]).abs().mean()
+                print(name, diff.item())
 
 
         return loss
